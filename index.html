@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Static Linked List Visualizer</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            padding-bottom: 50px;
+        }
+        .header {
+            background: linear-gradient(135deg, #0d6efd, #0dcaf0);
+            color: white;
+            padding: 1.5rem 0;
+            margin-bottom: 2rem;
+            border-radius: 0 0 1rem 1rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        /* Node Visualization Styles */
+        .visualization-container {
+            position: relative;
+            padding: 70px 30px;
+            min-height: 320px;
+            overflow-x: auto;
+            white-space: nowrap;
+            background: #ffffff;
+            border-radius: 1rem;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.05);
+            border: 1px solid #dee2e6;
+        }
+        .node-wrapper {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            margin-right: 50px;
+            position: relative;
+            vertical-align: top;
+        }
+        .pointer-label {
+            height: 24px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+        .start-label { color: #198754; }
+        .free-label { color: #0dcaf0; }
+        
+        .node {
+            width: 120px;
+            border: 2px solid #dee2e6;
+            border-radius: 0.5rem;
+            background: white;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            transition: all 0.3s ease;
+            position: relative;
+            z-index: 2;
+        }
+        .node-free {
+            border-color: #ced4da;
+            background-color: #f8f9fa;
+            color: #6c757d;
+        }
+        .node-occupied {
+            border-color: #0d6efd;
+            background-color: #e9ecef;
+            color: #212529;
+        }
+        .node-header {
+            background: #e9ecef;
+            padding: 4px;
+            text-align: center;
+            font-size: 0.8rem;
+            font-weight: bold;
+            border-bottom: 1px solid #dee2e6;
+            border-radius: 0.4rem 0.4rem 0 0;
+        }
+        .node-free .node-header { background: #dee2e6; }
+        .node-occupied .node-header { background: #0d6efd; color: white; border-bottom: none; }
+        
+        .node-body {
+            padding: 8px;
+            text-align: center;
+        }
+        .node-val {
+            font-size: 1.2rem;
+            font-weight: bold;
+            min-height: 28px;
+            margin-bottom: 4px;
+            word-break: break-all;
+        }
+        .node-ptr {
+            font-size: 0.9rem;
+            background: #fff;
+            border: 1px dashed #adb5bd;
+            border-radius: 4px;
+            padding: 2px;
+        }
+        
+        /* Arrows Overlay */
+        #arrows-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        /* Animations */
+        .anim-highlight { box-shadow: 0 0 0 4px #ffc107 !important; border-color: #ffc107 !important; transform: scale(1.05); z-index: 10;}
+        .anim-pulse { animation: pulse 0.6s ease-in-out; }
+        .anim-shake { animation: shake 0.5s; }
+        .anim-fade-in { animation: fadeIn 0.4s ease-in; }
+        .anim-fade-out { animation: fadeOut 0.4s ease-out forwards; }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(25, 135, 84, 0.7); border-color: #198754; }
+            50% { transform: scale(1.1); box-shadow: 0 0 0 10px rgba(25, 135, 84, 0); border-color: #198754; background-color: #d1e7dd; }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(25, 135, 84, 0); }
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); border-color: #dc3545; background-color: #f8d7da; }
+            20%, 60% { transform: translateX(-5px); border-color: #dc3545; }
+            40%, 80% { transform: translateX(5px); border-color: #dc3545; }
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeOut { from { opacity: 1; } to { opacity: 0.3; filter: grayscale(100%); } }
+
+        /* Consoles & Panels */
+        .console-panel {
+            background-color: #212529;
+            color: #00ff00;
+            font-family: monospace;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            white-space: pre-wrap;
+            min-height: 120px;
+        }
+        .caption-box {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-radius: 0.25rem;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container-fluid px-0">
+    <header class="header text-center">
+        <h1 class="display-6 fw-bold">Static Linked List Visualizer</h1>
+        <p class="mb-0">Interactive array-based linked list (Parallel Arrays)</p>
+    </header>
+</div>
+
+<div class="container">
+    <div class="row mb-4">
+        <!-- Controls -->
+        <div class="col-md-5">
+            <div class="card h-100 shadow-sm border-0">
+                <div class="card-body">
+                    <h5 class="card-title mb-3">Controls</h5>
+                    
+                    <div class="input-group mb-3">
+                        <span class="input-group-text">Capacity</span>
+                        <input type="number" id="capacityInput" class="form-control" value="4" min="1">
+                        <button class="btn btn-outline-primary" onclick="initListUI()">Reset / Create</button>
+                    </div>
+
+                    <div class="input-group mb-2">
+                        <input type="text" id="itemInput" class="form-control" placeholder="Item value...">
+                        <button class="btn btn-success" onclick="handleInsert()">Insert</button>
+                        <button class="btn btn-info text-white" onclick="handleFind()">Find</button>
+                        <button class="btn btn-danger" onclick="handleDelete()">Delete</button>
+                    </div>
+                    <small class="text-muted">Operations run on the exact Python logic.</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Live State -->
+        <div class="col-md-7">
+            <div class="card h-100 shadow-sm border-0 bg-dark text-light">
+                <div class="card-body">
+                    <h5 class="card-title mb-2 text-white">Live Internal State (Python str equivalent)</h5>
+                    <div id="stateConsole" class="console-panel">Initializing...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Feedback & Captions -->
+    <div id="messageAlert" class="alert d-none" role="alert"></div>
+    <div class="caption-box shadow-sm" id="captionBox">
+        Welcome! Create a list to begin visualizing array-based pointer manipulation.
+    </div>
+
+    <!-- Legend -->
+    <div class="mb-3 d-flex gap-3 align-items-center flex-wrap">
+        <strong>Legend:</strong>
+        <span class="badge bg-success">Start Pointer</span>
+        <span class="badge bg-info text-dark">Free Pointer</span>
+        <span class="badge border border-secondary text-secondary" style="background:#f8f9fa;">Free Node</span>
+        <span class="badge bg-primary">Occupied Node</span>
+        <small class="text-muted ms-auto">Arrows show valid links. Dotted links represent the free space chain.</small>
+    </div>
+
+    <!-- Visualization -->
+    <div class="visualization-container" id="visContainer">
+        <svg id="arrows-svg"></svg>
+        <div id="nodesContainer" class="d-flex w-100"></div>
+    </div>
+
+    <!-- Tests Collapse -->
+    <div class="mt-5">
+        <button class="btn btn-secondary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#testsCollapse">
+            Toggle Automated Tests
+        </button>
+        <div class="collapse mt-2" id="testsCollapse">
+            <div class="card card-body bg-light">
+                <pre id="testOutput" style="margin: 0; font-size: 0.85rem; color: #333;"></pre>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    /**
+     * CORE LOGIC - Mirrors the Python Implementation exactly.
+     */
+    class LinkList {
+        constructor(capacity = 4) {
+            this.capacity = parseInt(capacity);
+            this.free_pointer = 0; 
+            this.start_pointer = -1;
+            this.list = new Array(this.capacity).fill(null);
+            this.pointers = new Array(this.capacity).fill(null);
+
+            // Initialization of Pointer array
+            for (let index = 0; index < this.capacity; index++) {
+                this.pointers[index] = index + 1;
+            }
+            this.pointers[this.capacity - 1] = -1;
+        }
+
+        toString() {
+            const listStr = this.list.map(x => x === null ? 'None' : `'${x}'`).join(', ');
+            const ptrsStr = this.pointers.join(', ');
+            return `Free Pointer: ${this.free_pointer} | Start Pointer: ${this.start_pointer}\nLink List: [${listStr}]\nPointer List: [${ptrsStr}]`;
+        }
+
+        insert(item) {
+            if (this.free_pointer === -1) {
+                return { error: true, msg: "ERROR: List is full." };
+            }
+            let temp = this.start_pointer;
+            this.start_pointer = this.free_pointer;
+            this.free_pointer = this.pointers[this.free_pointer];
+            this.pointers[this.start_pointer] = temp;
+            this.list[this.start_pointer] = item;
+            
+            return { error: false, index: this.start_pointer };
+        }
+
+        find(item) {
+            let temp = this.start_pointer;
+            let path = [];
+            while (temp !== -1 && this.list[temp] !== item) {
+                path.push(temp);
+                temp = this.pointers[temp];
+            }
+            if (temp !== -1) path.push(temp); // add found node to path
+            return { index: temp, path: path };
+        }
+
+        delete(item) {
+            if (this.start_pointer === -1) {
+                return { error: true, msg: "INVALID OPERATION: List is empty.", path: [] };
+            }
+            let index = this.start_pointer;
+            let old_pointer = null;
+            let path = [];
+
+            while (index !== -1 && this.list[index] !== item) {
+                path.push(index);
+                old_pointer = index;
+                index = this.pointers[index];
+            }
+
+            if (index === -1) {
+                return { error: true, msg: "ERROR: Item not in the list.", path: path };
+            }
+            
+            path.push(index); // node to delete
+
+            if (index === this.start_pointer) {
+                this.start_pointer = this.pointers[this.start_pointer];
+                this.pointers[index] = this.free_pointer;
+                this.free_pointer = index;
+                this.list[index] = null;
+            } else {
+                let temp = this.pointers[index];
+                this.pointers[index] = this.free_pointer;
+                this.free_pointer = index;
+                this.pointers[old_pointer] = temp;
+                this.list[index] = null;
+            }
+            return { error: false, index: index, path: path };
+        }
+    }
+
+    /**
+     * UI & VISUALIZATION LOGIC
+     */
+    let uiList = null;
+    let isAnimating = false;
+
+    // Helper for async delays
+    const delay = ms => new Promise(res => setTimeout(res, ms));
+
+    function initListUI() {
+        if (isAnimating) return;
+        const cap = parseInt(document.getElementById('capacityInput').value);
+        if (isNaN(cap) || cap < 1) {
+            showAlert("Capacity must be a positive integer.", "danger");
+            return;
+        }
+        uiList = new LinkList(cap);
+        hideAlert();
+        setCaption(`Initialized LinkList with capacity ${cap}. Free pointer starts at 0, Start pointer is -1.`);
+        renderUI();
+    }
+
+    function updateStateConsole() {
+        if(uiList) document.getElementById('stateConsole').innerText = uiList.toString();
+    }
+
+    function setCaption(text) {
+        document.getElementById('captionBox').innerText = text;
+    }
+
+    function showAlert(msg, type) {
+        const alertEl = document.getElementById('messageAlert');
+        alertEl.className = `alert alert-${type} mt-2`;
+        alertEl.innerText = msg;
+        alertEl.classList.remove('d-none');
+    }
+    function hideAlert() {
+        document.getElementById('messageAlert').classList.add('d-none');
+    }
+
+    async function handleInsert() {
+        if (isAnimating || !uiList) return;
+        const val = document.getElementById('itemInput').value.trim();
+        if (!val) { showAlert("Input cannot be empty.", "warning"); return; }
+        
+        hideAlert();
+        const res = uiList.insert(val);
+        
+        if (res.error) {
+            showAlert(res.msg, "danger");
+            setCaption(`Insert Failed: ${res.msg}`);
+            // visually shake free pointer or entire container if full
+            document.getElementById('visContainer').classList.add('anim-shake');
+            setTimeout(() => document.getElementById('visContainer').classList.remove('anim-shake'), 500);
+            return;
+        }
+
+        document.getElementById('itemInput').value = '';
+        setCaption(`Inserting '${val}'. Start pointer moved to free space at index ${res.index}. Free pointer updated to next available slot.`);
+        renderUI();
+        
+        // Highlight new node
+        const nodeEl = document.getElementById(`node-${res.index}`);
+        nodeEl.classList.add('anim-pulse', 'anim-fade-in');
+        setTimeout(() => nodeEl.classList.remove('anim-pulse', 'anim-fade-in'), 600);
+    }
+
+    async function handleFind() {
+        if (isAnimating || !uiList) return;
+        const val = document.getElementById('itemInput').value.trim();
+        if (!val) { showAlert("Input cannot be empty.", "warning"); return; }
+        
+        hideAlert();
+        if (uiList.start_pointer === -1) {
+            showAlert("List is empty.", "warning"); return;
+        }
+
+        isAnimating = true;
+        setCaption(`Finding '${val}'... Traversing starting from Start Pointer (${uiList.start_pointer}).`);
+        
+        // Temporarily clear active styling
+        renderUI();
+        const res = uiList.find(val);
+        
+        for (let i = 0; i < res.path.length; i++) {
+            const idx = res.path[i];
+            const nodeEl = document.getElementById(`node-${idx}`);
+            nodeEl.classList.add('anim-highlight');
+            await delay(600);
+            
+            if (i === res.path.length - 1 && res.index !== -1) {
+                // Found
+                nodeEl.classList.remove('anim-highlight');
+                nodeEl.classList.add('anim-pulse');
+                setCaption(`Found '${val}' at index ${idx}.`);
+                showAlert(`Success: Item '${val}' found at index ${idx}.`, "success");
+                await delay(600);
+                nodeEl.classList.remove('anim-pulse');
+            } else {
+                nodeEl.classList.remove('anim-highlight');
+            }
+        }
+
+        if (res.index === -1) {
+            // Not found
+            setCaption(`Reached end of list (-1). '${val}' not found.`);
+            showAlert(`ERROR: Item '${val}' not present in the Link List`, "danger");
+            // Shake last checked node or container
+            const target = res.path.length > 0 ? document.getElementById(`node-${res.path[res.path.length-1]}`) : document.getElementById('visContainer');
+            target.classList.add('anim-shake');
+            await delay(500);
+            target.classList.remove('anim-shake');
+        }
+
+        isAnimating = false;
+        renderUI();
+    }
+
+    async function handleDelete() {
+        if (isAnimating || !uiList) return;
+        const val = document.getElementById('itemInput').value.trim();
+        if (!val) { showAlert("Input cannot be empty.", "warning"); return; }
+        
+        hideAlert();
+        const initialRes = uiList.delete(val); // Execute logic first
+
+        if (initialRes.error) {
+            showAlert(initialRes.msg, "danger");
+            setCaption(`Delete Failed: ${initialRes.msg}`);
+            if(initialRes.path.length > 0) {
+                 // animate path to show search failure
+                 isAnimating = true;
+                 for(let idx of initialRes.path) {
+                     const nodeEl = document.getElementById(`node-${idx}`);
+                     nodeEl.classList.add('anim-highlight');
+                     await delay(300);
+                     nodeEl.classList.remove('anim-highlight');
+                 }
+                 isAnimating = false;
+            }
+            return;
+        }
+
+        isAnimating = true;
+        setCaption(`Deleting '${val}'. Found at index ${initialRes.index}. Rewiring pointers and returning node to Free pool.`);
+        
+        // Re-render to show updated state, but play animation on deleted node visually
+        renderUI();
+        
+        const deletedNodeEl = document.getElementById(`node-${initialRes.index}`);
+        deletedNodeEl.classList.add('anim-fade-out');
+        await delay(500);
+        deletedNodeEl.classList.remove('anim-fade-out');
+        
+        isAnimating = false;
+        document.getElementById('itemInput').value = '';
+        renderUI(); // Final clean render
+    }
+
+    function renderUI() {
+        if (!uiList) return;
+        const container = document.getElementById('nodesContainer');
+        container.innerHTML = '';
+        
+        for (let i = 0; i < uiList.capacity; i++) {
+            const isFree = uiList.list[i] === null;
+            const isStart = uiList.start_pointer === i;
+            const isFreePtr = uiList.free_pointer === i;
+            
+            let labelHtml = '';
+            if (isStart) labelHtml += `<div class="start-label">Start ↓</div>`;
+            if (isFreePtr) labelHtml += `<div class="free-label">Free ↓</div>`;
+            if (!isStart && !isFreePtr) labelHtml += `<div class="pointer-label"></div>`; // spacer
+
+            const nodeClass = isFree ? 'node-free' : 'node-occupied';
+            const valDisplay = isFree ? '&nbsp;' : uiList.list[i];
+            
+            const html = `
+                <div class="node-wrapper" id="wrapper-${i}">
+                    <div class="pointer-label">${labelHtml}</div>
+                    <div class="node ${nodeClass}" id="node-${i}">
+                        <div class="node-header">Index ${i}</div>
+                        <div class="node-body">
+                            <div class="node-val">${valDisplay}</div>
+                            <div class="node-ptr" id="ptr-${i}">Ptr: ${uiList.pointers[i]}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            container.insertAdjacentHTML('beforeend', html);
+        }
+        
+        updateStateConsole();
+        drawArrows();
+    }
+
+    function drawArrows() {
+        const svg = document.getElementById('arrows-svg');
+        if (!svg || !uiList) return;
+
+        const visContainer = document.getElementById('visContainer');
+        
+        // Match SVG viewport to container scroll dimensions
+        svg.style.width = visContainer.scrollWidth + 'px';
+        svg.style.height = visContainer.scrollHeight + 'px';
+        svg.innerHTML = ''; 
+
+        const containerRect = visContainer.getBoundingClientRect();
+        const scrollLeft = visContainer.scrollLeft;
+        const scrollTop = visContainer.scrollTop;
+
+        // Define SVG defs for arrowheads and drop shadows
+        const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+        defs.innerHTML = `
+            <filter id="arrow-glow" x="-20%" y="-20%" width="140%" height="140%">
+                <feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-color="#000" flood-opacity="0.15"/>
+            </filter>
+            <marker id="marker-data" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#0d6efd"/>
+            </marker>
+            <marker id="marker-free" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#0dcaf0"/>
+            </marker>
+        `;
+        svg.appendChild(defs);
+
+        // Map nodes in the active data chain starting from start_pointer
+        const dataNodes = new Set();
+        let currData = uiList.start_pointer;
+        while (currData !== -1 && !dataNodes.has(currData)) {
+            dataNodes.add(currData);
+            currData = uiList.pointers[currData];
+        }
+
+        // Draw pointer links between array slots
+        for (let i = 0; i < uiList.capacity; i++) {
+            const nextIdx = uiList.pointers[i];
+            if (nextIdx === -1) continue;
+
+            const fromEl = document.getElementById(`ptr-${i}`);
+            const toEl = document.getElementById(`node-${nextIdx}`);
+            if (!fromEl || !toEl) continue;
+
+            const fromRect = fromEl.getBoundingClientRect();
+            const toRect = toEl.getBoundingClientRect();
+
+            const isDataLink = dataNodes.has(i) && dataNodes.has(nextIdx);
+            const dist = nextIdx - i;
+
+            let startX, startY, endX, endY, pathData;
+
+            if (dist === 1) {
+                // Adjacent forward link: direct horizontal S-curve
+                startX = (fromRect.right) - containerRect.left + scrollLeft;
+                startY = (fromRect.top + fromRect.height / 2) - containerRect.top + scrollTop;
+                endX = (toRect.left) - containerRect.left + scrollLeft;
+                endY = (toRect.top + toRect.height / 2) - containerRect.top + scrollTop;
+
+                const midX = startX + (endX - startX) / 2;
+                pathData = `M ${startX} ${startY} C ${midX} ${startY}, ${midX} ${endY}, ${endX} ${endY}`;
+            } else if (dist > 0) {
+                // Long forward jump: Arc ABOVE the node cards
+                const fromNodeRect = document.getElementById(`node-${i}`).getBoundingClientRect();
+                const toNodeRect = toEl.getBoundingClientRect();
+
+                startX = (fromNodeRect.left + fromNodeRect.width / 2) - containerRect.left + scrollLeft;
+                startY = (fromNodeRect.top) - containerRect.top + scrollTop;
+                
+                endX = (toNodeRect.left + toNodeRect.width / 2) - containerRect.left + scrollLeft;
+                endY = (toNodeRect.top) - containerRect.top + scrollTop;
+
+                const arcHeight = Math.min(80, 25 + Math.abs(dist) * 15);
+                const midX = (startX + endX) / 2;
+
+                pathData = `M ${startX} ${startY} Q ${midX} ${startY - arcHeight} ${endX} ${endY}`;
+            } else {
+                // Backward jump (dist < 0): Arc BELOW the node cards
+                const fromNodeRect = document.getElementById(`node-${i}`).getBoundingClientRect();
+                const toNodeRect = toEl.getBoundingClientRect();
+
+                startX = (fromNodeRect.left + fromNodeRect.width / 2) - containerRect.left + scrollLeft;
+                startY = (fromNodeRect.bottom) - containerRect.top + scrollTop;
+
+                endX = (toNodeRect.left + toNodeRect.width / 2) - containerRect.left + scrollLeft;
+                endY = (toNodeRect.bottom) - containerRect.top + scrollTop;
+
+                const arcHeight = Math.min(80, 25 + Math.abs(dist) * 15);
+                const midX = (startX + endX) / 2;
+
+                pathData = `M ${startX} ${startY} Q ${midX} ${startY + arcHeight} ${endX} ${endY}`;
+            }
+
+            const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            path.setAttribute("d", pathData);
+            path.setAttribute("fill", "none");
+            path.setAttribute("filter", "url(#arrow-glow)");
+
+            if (isDataLink) {
+                path.setAttribute("stroke", "#0d6efd");
+                path.setAttribute("stroke-width", "2.5");
+                path.setAttribute("marker-end", "url(#marker-data)");
+            } else {
+                path.setAttribute("stroke", "#0dcaf0");
+                path.setAttribute("stroke-width", "2");
+                path.setAttribute("stroke-dasharray", "5,4");
+                path.setAttribute("marker-end", "url(#marker-free)");
+            }
+
+            svg.appendChild(path);
+        }
+    }
+
+    // Handle window resize and container scroll to keep arrows aligned
+    window.addEventListener('resize', drawArrows);
+    document.addEventListener('DOMContentLoaded', () => {
+        const vis = document.getElementById('visContainer');
+        if (vis) vis.addEventListener('scroll', drawArrows);
+    });
+
+    /**
+     * AUTOMATED TESTS
+     */
+    function runTests() {
+        const out = document.getElementById('testOutput');
+        let logs = "--- Running Tests on JS LinkList Core Logic ---\n";
+        
+        function assert(condition, message) {
+            if (condition) { logs += `[PASS] ${message}\n`; }
+            else { logs += `[FAIL] ${message}\n`; }
+        }
+
+        try {
+            // Test 1: Initialization
+            let ll = new LinkList(3);
+            assert(ll.capacity === 3 && ll.free_pointer === 0 && ll.start_pointer === -1, "Initialization state variables");
+            assert(ll.pointers[0]===1 && ll.pointers[1]===2 && ll.pointers[2]===-1, "Initialization pointers chain correctly");
+
+            // Test 2: Insert Empty
+            ll.insert("A");
+            assert(ll.start_pointer === 0 && ll.free_pointer === 1 && ll.list[0] === "A", "Insert first item at head");
+
+            // Test 3: Insert More
+            ll.insert("B");
+            assert(ll.start_pointer === 1 && ll.pointers[1] === 0 && ll.list[1] === "B", "Insert second item moves head and links correctly");
+            ll.insert("C");
+
+            // Test 4: Insert Full
+            let res = ll.insert("D");
+            assert(res.error === true && ll.free_pointer === -1, "Insert rejects when list is full");
+
+            // Test 5: Find
+            let findA = ll.find("A");
+            assert(findA.index === 0, "Find retrieves existing item at correct index");
+            let findZ = ll.find("Z");
+            assert(findZ.index === -1, "Find returns -1 for missing item");
+
+            // Test 6: Delete Head
+            ll.delete("C");
+            assert(ll.start_pointer === 1 && ll.free_pointer === 2 && ll.list[2] === null, "Delete head updates start_pointer and frees node");
+
+            // Test 7: Delete Middle/Tail
+            ll.delete("A");
+            assert(ll.pointers[1] === -1 && ll.free_pointer === 0 && ll.list[0] === null, "Delete middle/tail wires previous pointer correctly");
+
+            // Test 8: Delete Missing
+            let delRes = ll.delete("X");
+            assert(delRes.error === true, "Delete returns error for missing item");
+            
+            // Test 9: Delete from Empty
+            ll.delete("B"); // Now empty
+            let delEmpty = ll.delete("A");
+            assert(delEmpty.error === true && delEmpty.msg.includes("empty"), "Delete rejects when list is empty");
+
+        } catch (e) {
+            logs += `\n[FATAL ERROR] Exception during tests: ${e.message}\n`;
+        }
+
+        logs += "--- Tests Complete ---";
+        out.innerText = logs;
+    }
+
+    // Initialize app on load
+    window.onload = () => {
+        initListUI();
+        runTests();
+    };
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
